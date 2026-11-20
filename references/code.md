@@ -6,7 +6,8 @@
 
 - `CodeTypeIn`: Typing code in line by line.
 - `CodeLineSpotlight`: Highlight band behind the text that moves between lines, dimming the rest.
-- `CodeTokenFocus`: Picking out a name or token in the code with a fill behind it.
+- `CodeTokenFocus`: Picking out a name or token in the code with a fill behind it; numbered from 12 with `line_numbers_from`.
+- `CodeExcerpt`: Numbering an excerpt that skips lines (5, 6, 7, ⋮, 10) with `relabel_lines`, then highlighting a line after the gap.
 - `CodeMorph`: Morphing one version of the code into the next, with a reusable `morph_code` helper.
 
 ## Working with `Code`
@@ -16,6 +17,7 @@
 - **Parts.** `code.background`, `code.line_numbers` (absent without line numbers) and `code.code_lines`: `code.code_lines[i]` is line `i` (0-based), and `code.code_lines[i][k]` is the k-th **non-whitespace** character of that line, since spaces have no glyph. `find_glyphs` and `tokens_of` below do this mapping.
 - **Animate whole lines or single glyphs, never a slice.** `code.code_lines[i][a:b]` builds a new `VGroup`. Animating it makes Manim add it to the scene, which splits the `Code` apart: the reading-time checker then reports the code as shown for 0 s. Slices are fine for sizing other shapes (`text_fill`, `Brace`). To move or recolor a token, animate each glyph: `*(g.animate.set_color(YELLOW) for g in token)`.
 - **Highlight with a fill behind the text,** not an outline around it: outlines crowd the letters. `text_fill` sizes a band (whole lines) or a chip (a token), and `under_text` draws it between the code's background and its letters. Reveal and hide it by animating its fill opacity; `FadeIn`/`FadeOut` would put it on top of the text and split the `Code` apart.
+- **Line numbers** start at 1. For lines from the middle of a file, pass `line_numbers_from=12`. For an excerpt that skips lines, leave a blank line where the gap is and relabel the numbers with `relabel_lines` (`CodeExcerpt`): `Code` has no option for gaps. Indexes such as `code.code_lines[i]` and `text_fill(code, i)` still count displayed lines from 0, whatever the labels say.
 - **Line positions.** A line's own centre and height shift with its letters (`return s` sits lower than `def total(prices):`). Align fills and arrows to `code.line_numbers[i]`, which sit on an even grid.
 - **Between two versions,** `TransformMatchingShapes(old, new)` works for a small edit, but it pairs identical glyphs regardless of position, so letters can fly across the block. Use `morph_code` for anything larger.
 - **Reading time.** The checker counts a whole `Code` as one text, line numbers separately, so a long block needs a long hold. Call `self.wait_to_read()` before a morph, as before any change of text.
@@ -162,7 +164,8 @@ class CodeTokenFocus(Scene):
     for p in prices:
         s += p
     return s'''
-        code = Code(code_string=src, language="python")
+        # These are lines 12-16 of a longer file, so number them from 12.
+        code = Code(code_string=src, language="python", line_numbers_from=12)
         self.add(code)
         marks = [
             under_text(code, text_fill(code, line, glyphs=find_glyphs(code, src, line, "prices")))
@@ -171,6 +174,79 @@ class CodeTokenFocus(Scene):
         self.play(*(m.animate.set_fill(opacity=0.3) for m in marks))
         self.wait()
         self.play(*(m.animate.set_fill(opacity=0) for m in marks))
+        self.wait()
+```
+
+## CodeExcerpt
+
+Lines 5–7 and 10 of a longer file, with the left-out lines shown as ⋮ in the line numbers; a fill then marks line 10. *animation*. Source: written for this skill (`Code` has no option for skipped lines).
+
+```python
+from manim import *
+
+
+def relabel_lines(code, labels, paragraph_config=None):
+    """Replace the line numbers of `code` with `labels`, one string per line, to number an
+    excerpt that skips lines: "5", "6", "7", "⋮", "10". The first label must be a number.
+    Pass the same paragraph_config the Code got. The new labels keep Code's grid, right
+    edge and color, so text_fill and morph_code still line up with them.
+    """
+    old = code.line_numbers
+    config = {**Code.default_paragraph_config, **(paragraph_config or {})}
+    new = Paragraph(*labels, alignment="right", color=old[0].get_color(), **config)
+    # Line up the first label with the first old number: both are digits on one baseline.
+    new.align_to(old, RIGHT).shift(UP * (old[0].get_bottom()[1] - new[0].get_bottom()[1]))
+    code.submobjects[code.submobjects.index(old)] = new
+    code.line_numbers = new
+    # Widen the background to the left if the new labels are wider ("10" after "5"-"9").
+    extra = old.get_left()[0] - new.get_left()[0]
+    if extra > 0:
+        code.background.stretch_to_fit_width(code.background.width + extra, about_edge=RIGHT)
+    return code
+
+
+def text_fill(code, *lines, glyphs=None, color=YELLOW):
+    """A transparent rounded fill sized to the code text: a band across `lines`, or a chip
+    behind `glyphs` (from find_glyphs) on one of them. Put it in place with under_text().
+    """
+    # Line numbers sit on an even grid; the code glyphs' own centres shift with their letters.
+    nums = VGroup(*(code.line_numbers[i] for i in lines))
+    pitch = code.line_numbers[0].get_y() - code.line_numbers[1].get_y()
+    height = nums.get_top()[1] - nums.get_bottom()[1] + pitch * 0.7
+    if glyphs is None:
+        width, x = code.background.width - 0.1, code.background.get_x()
+    else:
+        width, x = glyphs.width + 0.14, glyphs.get_x()
+    return RoundedRectangle(
+        corner_radius=0.06, width=width, height=height,
+        fill_color=color, fill_opacity=0, stroke_width=0,
+    ).move_to([x, nums.get_y(), 0])
+
+
+def under_text(code, fill):
+    """Draw `fill` inside `code`, over its background and under its text.
+
+    Reveal and hide it with fill.animate.set_fill(opacity=...). FadeIn/FadeOut would add
+    it to the scene on its own, on top of the text, and split the Code apart.
+    """
+    code.submobjects.insert(code.submobjects.index(code.background) + 1, fill)
+    return fill
+
+
+class CodeExcerpt(Scene):
+    def construct(self):
+        # Lines 5-7 and 10 of a longer file. Lines 8-9 are left out: a blank line holds the gap.
+        src = '''def total(prices):
+    s = 0
+    for p in prices:
+
+    return s'''
+        code = Code(code_string=src, language="python")
+        relabel_lines(code, ["5", "6", "7", "⋮", "10"])
+        self.play(FadeIn(code))
+        self.wait()
+        spot = under_text(code, text_fill(code, 4))  # index 4 is the line labelled 10
+        self.play(spot.animate.set_fill(opacity=0.2))
         self.wait()
 ```
 
