@@ -16,6 +16,7 @@ Avoid technical jargon, keep your presentation accessible.
 Pick a set of motifs and stick to them - a concept should have a consistent visual representation.
 Tell a story, start in media res.
 Introduce ideas and problems from first principles
+Be playful with layout, use the rule of thirds and break out of rectangles in your designs.
 
 ## Steps
 
