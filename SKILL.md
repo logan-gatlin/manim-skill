@@ -47,12 +47,13 @@ Introduce ideas and problems from first principles
 
 ## Topic files
 
-Each one holds verbatim, render-tested examples from the v0.22.1 docs, with an index at the top.
+Each one holds render-tested examples, verbatim from the v0.22.1 docs unless the file says otherwise, with an index at the top.
 
 - [references/basics.md](references/basics.md): positioning, styling, grouping/arranging, `.animate`, `Transform`, custom animations.
 - [references/text-and-math.md](references/text-and-math.md): `Text`/`MarkupText`, `Tex`/`MathTex`, Typst math, coloring parts of formulas, equation rearranging, bullet lists, titles, code blocks, braces, live numbers.
 - [references/plots-and-axes.md](references/plots-and-axes.md): `Axes` plots, areas and Riemann sums, derivatives/secants, implicit/parametric/polar curves, log axes, data line graphs, number lines and planes, complex plane, bar charts.
 - [references/diagrams-and-geometry.md](references/diagrams-and-geometry.md): arrows, labeled lines/dots/shapes, angles, right angles, highlighting (surrounding box, underline, cross), Venn/boolean shapes, polygons, dashed outlines.
+- [references/code.md](references/code.md): syntax-highlighted code: typing it in, highlighting lines, picking out a token, morphing one version into the next.
 - [references/graphs-tables-matrices.md](references/graphs-tables-matrices.md): node-link `Graph`/`DiGraph`, trees, neural-net layers, networkx import, layout changes, tables, matrices, determinants, linear transformations of the plane.
 - [references/animation-and-motion.md](references/animation-and-motion.md): updaters, `ValueTracker`, `always_redraw`, traced paths, transform variants, `MoveToTarget`/`Restore`, `Succession`/`LaggedStart` timing, emphasis (`Indicate`, `Circumscribe`, `Flash`), grow/fade entrances, rate functions.
 - [references/camera-3d-fields.md](references/camera-3d-fields.md): moving/zooming camera, zoomed inset, `ThreeDScene` camera control, 3D surfaces and curves, vector fields and stream lines.
