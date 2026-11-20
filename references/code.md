@@ -11,7 +11,7 @@
 
 ## Working with `Code`
 
-- **API.** Write `Code(code_string=..., language="python", formatter_style="monokai", background="window", add_line_numbers=True, paragraph_config={"font_size": 20})`. Examples online often use the pre-0.19 API (`code=`, `file_name=`, `style=`, `insert_line_no=`, a `font_size=` argument, `code.code` for the lines), which fails on this version. Name `language` explicitly; guessing it is unreliable. `Code.get_styles_list()` lists the styles.
+- **API.** Write `Code(code_string=..., language="python", formatter_style="monokai", add_line_numbers=True, paragraph_config={"font_size": 20})`. Keep the default plain `background="rectangle"`: the `"window"` style adds red, yellow and green title-bar dots that carry no information. Examples online often use the pre-0.19 API (`code=`, `file_name=`, `style=`, `insert_line_no=`, a `font_size=` argument, `code.code` for the lines), which fails on this version. Name `language` explicitly; guessing it is unreliable. `Code.get_styles_list()` lists the styles.
 - **Colors** come from the Pygments style. `paragraph_config={"color": ...}` is ignored. Recolor glyphs after building it, or pass a custom style class as `formatter_style`.
 - **Parts.** `code.background`, `code.line_numbers` (absent without line numbers) and `code.code_lines`: `code.code_lines[i]` is line `i` (0-based), and `code.code_lines[i][k]` is the k-th **non-whitespace** character of that line, since spaces have no glyph. `find_glyphs` and `tokens_of` below do this mapping.
 - **Animate whole lines or single glyphs, never a slice.** `code.code_lines[i][a:b]` builds a new `VGroup`. Animating it makes Manim add it to the scene, which splits the `Code` apart: the reading-time checker then reports the code as shown for 0 s. Slices are fine for sizing other shapes (`text_fill`, `Brace`). To move or recolor a token, animate each glyph: `*(g.animate.set_color(YELLOW) for g in token)`.
@@ -35,7 +35,7 @@ class CodeTypeIn(Scene):
     for p in prices:
         s += p
     return s'''
-        code = Code(code_string=src, language="python", background="window")
+        code = Code(code_string=src, language="python")
         self.play(FadeIn(code.background), FadeIn(code.line_numbers))
         for line in code.code_lines:
             self.play(AddTextLetterByLetter(line, time_per_char=0.04))
@@ -85,7 +85,7 @@ class CodeLineSpotlight(Scene):
     for p in prices:
         s += p
     return s'''
-        code = Code(code_string=src, language="python", background="window")
+        code = Code(code_string=src, language="python")
 
         def focus(*lines):
             return [
@@ -162,7 +162,7 @@ class CodeTokenFocus(Scene):
     for p in prices:
         s += p
     return s'''
-        code = Code(code_string=src, language="python", background="window")
+        code = Code(code_string=src, language="python")
         self.add(code)
         marks = [
             under_text(code, text_fill(code, line, glyphs=find_glyphs(code, src, line, "prices")))
@@ -251,8 +251,8 @@ class CodeMorph(Scene):
     return s'''
         v2 = '''def total(prices, tax=0.2):
     return sum(prices) * (1 + tax)'''
-        old = Code(code_string=v1, language="python", background="window")
-        new = Code(code_string=v2, language="python", background="window")
+        old = Code(code_string=v1, language="python")
+        new = Code(code_string=v2, language="python")
         self.add(old)
         self.wait()
         morph_code(self, old, v1, new, v2)
