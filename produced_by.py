@@ -1,4 +1,4 @@
-"""End a Manim video on a card that says which model produced it.
+"""End a Manim video on a card that says which model produced it, with a link to this skill.
 
 Copy this file next to scene.py and list the mixin first, before Narration and ReadingTime:
 
@@ -15,6 +15,7 @@ video. Still renders (-s) skip the card, so the saved last frame is the scene it
 import manim
 from manim import DOWN, UP, FadeIn, FadeOut, Group, Text, VGroup
 
+SKILL_URL = "github.com/logan-gatlin/manim-skill"  # where the skill lives, shown under the model name
 HOLD = 0.5  # seconds the card is fully on screen at the end of the video
 FADE = 0.5  # seconds for the scene to fade out, and again for the card to fade in
 
@@ -41,7 +42,9 @@ class ProducedBy:
         card = VGroup(
             Text("Produced by", font_size=28, color=manim.GRAY_B),
             Text(self.produced_by, font_size=48),
+            Text(SKILL_URL, font_size=22, color=manim.GRAY_B),
         ).arrange(DOWN, buff=0.25)
+        card[2].shift(0.15 * DOWN)
         card.reading_exempt = True  # shown for HOLD seconds on purpose; see reading_time.py
 
         frame = getattr(self.camera, "frame", None)  # MovingCameraScene / ZoomedScene
