@@ -10,9 +10,12 @@ Installed here: **Manim Community v0.22.1** (`manim` on PATH, a `uv tool` instal
 ## Style
 
 Manim is a tool for presenting information in a dynamic and interesting way.
-If what you made could just as easily have been made as a flowchart, spreadsheet, or slideshow, you are not correctly using manim.
+If what you made could just as easily have been made as a flowchart, spreadsheet, dot graph, or slideshow, you are not correctly using manim.
+Beautiful is more engaging, and more memorable.
 Avoid technical jargon, keep your presentation accessible.
 Pick a set of motifs and stick to them - a concept should have a consistent visual representation.
+Tell a story, start in media res.
+Introduce ideas and problems from first principles
 
 ## Steps
 
