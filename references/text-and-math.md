@@ -340,10 +340,12 @@ class TypstSelectExample(Scene):
 
 ## CodeFromString
 
-Code block with syntax highlighting, line numbers, and window chrome. *still*. Source: [manim/mobject/text/code_mobject.py:52](https://github.com/ManimCommunity/manim/blob/v0.22.1/manim/mobject/text/code_mobject.py#L52)
+Code block with syntax highlighting, line numbers, and window chrome. *still*. Source: [manim/mobject/text/code_mobject.py:52](https://github.com/ManimCommunity/manim/blob/v0.22.1/manim/mobject/text/code_mobject.py#L52), with `import code_font` added, which sets the code in the skill's code font (see [code.md](code.md)).
 
 ```python
 from manim import *
+
+import code_font
 class CodeFromString(Scene):
     def construct(self):
         code = '''from manim import Scene, Square

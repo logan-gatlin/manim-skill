@@ -13,6 +13,7 @@
 ## Working with `Code`
 
 - **API.** Write `Code(code_string=..., language="python", formatter_style="monokai", add_line_numbers=True, paragraph_config={"font_size": 20})`. Keep the default plain `background="rectangle"`: the `"window"` style adds red, yellow and green title-bar dots that carry no information. Examples online often use the pre-0.19 API (`code=`, `file_name=`, `style=`, `insert_line_no=`, a `font_size=` argument, `code.code` for the lines), which fails on this version. Name `language` explicitly; guessing it is unreliable. `Code.get_styles_list()` lists the styles.
+- **Font.** Code is set in JetBrains Mono, which the skill carries in `assets/fonts/`. Copy [code_font.py](../code_font.py) next to the scene and `import code_font` before building any `Code`, as every example here does: the import loads the font files and makes the font `Code`'s default, so no `paragraph_config` entry is needed. For code written with `Text` rather than `Code` (a command, a file name, an identifier in a sentence), use `from code_font import MONO` and `Text("git status", font=MONO)`. Don't name another code font: one with programming ligatures (Fira Code, the regular cut of JetBrains Mono) merges pairs like `!=` and `->` into one glyph, and `Code` then fails with "rendered fewer glyph(s) than its non-space characters". The bundled files are the no-ligatures cut, so this doesn't happen.
 - **Colors** come from the Pygments style. `paragraph_config={"color": ...}` is ignored. Recolor glyphs after building it, or pass a custom style class as `formatter_style`.
 - **Parts.** `code.background`, `code.line_numbers` (absent without line numbers) and `code.code_lines`: `code.code_lines[i]` is line `i` (0-based), and `code.code_lines[i][k]` is the k-th **non-whitespace** character of that line, since spaces have no glyph. `find_glyphs` and `tokens_of` below do this mapping.
 - **Animate whole lines or single glyphs, never a slice.** `code.code_lines[i][a:b]` builds a new `VGroup`. Animating it makes Manim add it to the scene, which splits the `Code` apart: the reading-time checker then reports the code as shown for 0 s. Slices are fine for sizing other shapes (`text_fill`, `Brace`). To move or recolor a token, animate each glyph: `*(g.animate.set_color(YELLOW) for g in token)`.
@@ -28,6 +29,8 @@ Window and line numbers appear, then each line types in letter by letter. *anima
 
 ```python
 from manim import *
+
+import code_font
 
 
 class CodeTypeIn(Scene):
@@ -50,6 +53,8 @@ A soft band behind the text walks from line to line (one line, then a block of t
 
 ```python
 from manim import *
+
+import code_font
 
 
 def text_fill(code, *lines, glyphs=None, color=YELLOW):
@@ -113,6 +118,8 @@ Every use of a variable gets a colored chip behind it, picked out by name with `
 
 ```python
 from manim import *
+
+import code_font
 
 
 def text_fill(code, *lines, glyphs=None, color=YELLOW):
@@ -183,6 +190,8 @@ Lines 5–7 and 10 of a longer file, with the left-out lines shown as ⋮ in the
 
 ```python
 from manim import *
+
+import code_font
 
 
 def relabel_lines(code, labels, paragraph_config=None):
@@ -256,6 +265,8 @@ One version of a function morphs into another: removed code fades, code both ver
 
 ```python
 from manim import *
+
+import code_font
 
 
 def tokens_of(code, src):
