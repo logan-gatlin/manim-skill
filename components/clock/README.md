@@ -58,7 +58,7 @@ The weekday, date and zone share one smaller line under the time, as in `Sat 28 
 
 `clock.minutes` is a `ValueTracker` holding minutes since midnight on the starting date, for motion of your own: `self.play(clock.minutes.animate.increment_value(90), rate_func=linear)`.
 
-All the text is set in the skill's code font. Place the clock with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that, so set `radius` instead.
+All the text is set in the skill's code font. Place the clock with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that, so set `radius` instead. `FadeIn` and `FadeOut` work: the clock holds still while it fades, and a running clock carries on from the same time afterwards.
 
 ## Regenerating the image
 

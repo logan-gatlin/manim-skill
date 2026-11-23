@@ -16,7 +16,7 @@ and pop with a ring as they leave the narrow end. See README.md.
 """
 
 import numpy as np
-from manim import ORIGIN, CapStyleType, Circle, Dot, LineJointType, ManimColor, Rectangle, Text, VGroup, VMobject, interpolate_color, smooth
+from manim import ORIGIN, CapStyleType, Circle, LineJointType, ManimColor, Rectangle, Text, VGroup, VMobject, interpolate_color, smooth
 
 LINE = "#3a4252"
 INK = "#eef1f6"
@@ -39,11 +39,45 @@ def _stroke(pts, color, width, opacity=1.0):
     return m.set_stroke(color, width, opacity).set_fill(opacity=0).set_cap_style(CapStyleType.ROUND)
 
 
+# The funnel is drawn afresh for every frame, so what it is drawn from has to be quick to
+# make: Manim takes 0.2 ms to build a Dot, and there are some seventy in each drawing.
+ROUND = Circle(radius=1).points      # the points of a circle of radius 1
+
+
+def _shape(points, **style):
+    """A bare shape with these points and this style."""
+    m = VMobject(**style)
+    m.points = points
+    return m
+
+
+def _plain(mob):
+    """The letters of a Text as bare shapes that look the same. A Text carries the SVG it
+    was read from, which makes each copy of it slow; copies of these are quick."""
+    return VGroup(*[_shape(part.points.copy()).match_style(part) for part in mob.family_members_with_points()])
+
+
 def _chance(k, j):
     """A repeatable number in 0..1 for dot k (the j-th one it needs), so a dot keeps its fate
     and its lane from frame to frame."""
     v = np.sin(k * 12.9898 + j * 78.233) * 43758.5453
     return float(v - np.floor(v))
+
+
+class _Holder(VMobject):
+    """What a live drawing hangs from. It carries one invisible point, its anchor: the
+    renderer then re-reads its children every frame, and moving it moves where the next
+    drawing lands. A copy of it is a still picture, which does not redraw itself: FadeIn,
+    FadeOut and the like work on copies, and fail if a copy changes under them."""
+
+    def __init__(self):
+        super().__init__(stroke_width=0, fill_opacity=0)
+        self.set_points_as_corners([ORIGIN, ORIGIN])
+
+    def __deepcopy__(self, memo):
+        twin = super().__deepcopy__(memo)
+        twin.updaters = []
+        return twin
 
 
 def funnel(stages=(("Visit", 0.6), ("Sign up", 0.5), ("Activate", 0.6), ("Pay", 1.0)), width=5.8, height=1.3,
@@ -61,8 +95,18 @@ def funnel(stages=(("Visit", 0.6), ("Sign up", 0.5), ("Activate", 0.6), ("Pay", 
     n = len(names)
     xs = np.linspace(-width / 2, width / 2, n + 1)                  # where each stage starts and ends
     half = np.maximum(height / 2 * np.cumprod([1.0, *kept]), 2.4 * dot)   # the wall's height there
-    labels = [Text(name, font=SANS, font_size=label_size, color=MUTED) for name in names]
     life = (ENTRY + width + POP) / speed + BURST                   # how long a dot can be on screen
+    # What is the same in every drawing, made once and copied. An invisible box over the
+    # walls keeps the funnel's size the same from frame to frame, so it sits where it is put
+    # whatever the dots are doing.
+    top = list(zip(xs, half))
+    fixed = VGroup(Rectangle(width=width, height=2 * half[0], stroke_width=0, fill_opacity=0),
+                   _stroke(top, LINE, 3), _stroke([(x, -h) for x, h in top], LINE, 3))
+    for i in range(1, n):
+        fixed.add(_stroke([(xs[i], half[i]), (xs[i], -half[i])], LINE, 2, 0.7))
+    for i, name in enumerate(names):
+        label = Text(name, font=SANS, font_size=label_size, color=MUTED)
+        fixed.add(_plain(label.move_to([(xs[i] + xs[i + 1]) / 2, half[0] + 0.28, 0])))
 
     def color_at(x):
         u = float(np.clip((x - xs[0]) / width, 0, 1)) * (len(colors) - 1)
@@ -80,15 +124,7 @@ def funnel(stages=(("Visit", 0.6), ("Sign up", 0.5), ("Activate", 0.6), ("Pay", 
         return None
 
     def draw(t):
-        # An invisible box over the walls keeps the funnel's size the same from frame to
-        # frame, so it sits where it is put whatever the dots are doing.
-        g = VGroup(Rectangle(width=width, height=2 * half[0], stroke_width=0, fill_opacity=0))
-        top = list(zip(xs, half))
-        g.add(_stroke(top, LINE, 3), _stroke([(x, -h) for x, h in top], LINE, 3))
-        for i in range(1, n):
-            g.add(_stroke([(xs[i], half[i]), (xs[i], -half[i])], LINE, 2, 0.7))
-        for i, label in enumerate(labels):
-            g.add(label.copy().move_to([(xs[i] + xs[i + 1]) / 2, half[0] + 0.28, 0]))
+        g = fixed.copy()
         for k in range(max(0, int(np.ceil((t - life) * rate)) - 1), int(np.floor(t * rate)) + 2):
             # each dot sets off a little early or late and keeps to a lane of its own, so the
             # flow looks loose rather than marching in rows
@@ -125,15 +161,12 @@ def funnel(stages=(("Visit", 0.6), ("Sign up", 0.5), ("Activate", 0.6), ("Pay", 
             wall = float(np.interp(x, xs, half))
             p = np.array([x, lane * max(wall - dot - 0.05, 0.0), 0.0])
             if opacity > 0.01:
-                g.add(Dot(p, radius=dot * size, color=color or color_at(x), fill_opacity=opacity))
+                g.add(_shape(ROUND * (dot * size) + p, color=color or color_at(x), stroke_width=0, fill_opacity=opacity))
             if ring is not None:
                 g.add(ring.move_to(p))
         return g
 
-    # The holder carries one invisible point, its anchor: the renderer then re-reads its
-    # children every frame, and moving the holder moves where the next drawing lands.
-    holder = VMobject(stroke_width=0, fill_opacity=0)
-    holder.set_points_as_corners([ORIGIN, ORIGIN])
+    holder = _Holder()
     state = {"t": (ENTRY + width) / speed if filled else 0.0}
 
     def redraw(m, dt=0):

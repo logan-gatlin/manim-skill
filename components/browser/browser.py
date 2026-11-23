@@ -38,12 +38,40 @@ def _ease(x):
     return x * x * (3 - 2 * x)
 
 
+KAPPA = 4 / 3 * np.tan(np.pi / 8)      # how far a quarter circle's handles are from its ends, in radii
+
+
+def _rounded(w, h, r):
+    """The points Manim's RoundedRectangle has, worked out directly: four quarter circles
+    of radius `r` joined by straight lines, anticlockwise from the right-hand side. Building
+    the mobject takes 4 ms, which is too slow to do on every frame."""
+    x, y, k = w / 2, h / 2, r * KAPPA
+    a = np.array([[x, y - r], [x, y - r + k], [x - r + k, y], [x - r, y]])      # the top right corner
+    corners = [a, a[::-1] * [-1, 1], a * [-1, -1], a[::-1] * [1, -1]]
+    points = np.zeros((32, 3))
+    for i, (corner, after) in enumerate(zip(corners, corners[1:] + corners[:1])):
+        points[8 * i:8 * i + 4, :2] = corner
+        points[8 * i + 4:8 * i + 8, :2] = np.linspace(corner[-1], after[0], 4)
+    return points
+
+
 class _Change(Animation):
     """Runs a browser's state through a function of the seconds elapsed."""
 
-    def __init__(self, browser, seconds, step, run_time=None):
-        self.seconds, self.step = seconds, step
+    def __init__(self, browser, seconds, step, run_time=None, words=()):
+        self.seconds, self.step, self.words = seconds, step, words
+        for word in words:
+            word.busy += 1                       # it has a change still to make
         super().__init__(browser, run_time=run_time or seconds, rate_func=linear)
+
+    def finish(self):
+        super().finish()
+        for word in self.words:
+            word.busy -= 1
+        self.words = ()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole browser here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.step(alpha * self.seconds)
@@ -114,8 +142,8 @@ class Browser(VGroup):
         """Go to another address: the old address slides up and out as the new one comes
         in, and a bar runs across under the toolbar. With `content`, the page on the screen
         fades out and the new one comes in from the right. Returns the animation."""
-        for word in list(self.address):                  # forget addresses that have gone
-            if word is not self._current and word.shown < 0.01:
+        for word in list(self.address):                  # forget addresses that have gone, but not
+            if word is not self._current and word.shown < 0.01 and not word.busy:      # one still to come
                 self.address.remove(word)
         old_word, new_word = self._current, self._word(address)
         new_word.shown, new_word.rise = 0.0, -1.0
@@ -129,7 +157,7 @@ class Browser(VGroup):
             self._run = _ease(u / 0.55)
             self._glow = _ease(u / 0.1) * (1 - _ease((u - 0.5) / 0.25))
 
-        chrome = _Change(self, 0.8, step)
+        chrome = _Change(self, 0.8, step, words=(old_word, new_word))
         if content is None:
             return chrome if run_time is None else chrome.set_run_time(run_time)
         old, self.content = self.content, self.place(content)
@@ -153,7 +181,7 @@ class Browser(VGroup):
         letters = VGroup(*t[2:])
         letters.shift([-letters.get_center()[0] if len(letters) else 0, -t[:2].get_center()[1], 0])
         word = VGroup(VMobject(stroke_width=0, fill_opacity=0).set_points_as_corners([ORIGIN, ORIGIN]), *letters)
-        word.anchor, word.shown, word.rise = word[0], 1.0, 0.0
+        word.anchor, word.shown, word.rise, word.busy = word[0], 1.0, 0.0, 0
         word.span = letters.width / self._scale() if len(letters) else 0.0
         self.address.add(word)
         return word
@@ -170,8 +198,8 @@ class Browser(VGroup):
             dot.move_to([left + (0.38 + 0.21 * k) * s, row, 0]).set_fill(opacity=o)
         # the pill is as wide as the longest address on it needs
         need = max([w.span for w in self.address if w.shown > 0.01] + [0.0]) + 0.7
-        box = RoundedRectangle(corner_radius=0.19 * s, width=max(0.58 * self._size0[0], need) * s, height=0.38 * s)
-        self.pill.set_points(box.move_to([middle[0], row, 0]).points).set_fill(opacity=o)
+        self.pill.set_points(_rounded(max(0.58 * self._size0[0], need) * s, 0.38 * s, 0.19 * s) + [middle[0], row, 0])
+        self.pill.set_fill(opacity=o)
         for word in self.address:
             word.shift(np.array([middle[0], row + 0.1 * s * word.rise, 0]) - word.anchor.points[0])
             for letter in word[1:]:

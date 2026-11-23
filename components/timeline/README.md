@@ -39,7 +39,7 @@ A timeline made with `now` already past some bars shows their durations settled,
 | `span` | `(first, last)` time shown. By default, from the earliest start to the latest end. |
 | `cursor` | `False` hides the line that marks `now`. |
 
-Place it with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that.
+Place it with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that. `FadeIn` and `FadeOut` work: the timeline holds still while it fades.
 
 ## Regenerating the image
 

@@ -52,6 +52,23 @@ def _ease(x):
     return x * x * (3 - 2 * x)
 
 
+KAPPA = 4 / 3 * np.tan(np.pi / 8)      # how far a quarter circle's handles are from its ends, in radii
+
+
+def _rounded(w, h, r):
+    """The points Manim's RoundedRectangle has, worked out directly: four quarter circles
+    of radius `r` joined by straight lines, anticlockwise from the right-hand side. Building
+    the mobject takes 4 ms, which is too slow to do on every frame."""
+    x, y, k = w / 2, h / 2, r * KAPPA
+    a = np.array([[x, y - r], [x, y - r + k], [x - r + k, y], [x - r, y]])      # the top right corner
+    corners = [a, a[::-1] * [-1, 1], a * [-1, -1], a[::-1] * [1, -1]]
+    points = np.zeros((32, 3))
+    for i, (corner, after) in enumerate(zip(corners, corners[1:] + corners[:1])):
+        points[8 * i:8 * i + 4, :2] = corner
+        points[8 * i + 4:8 * i + 8, :2] = np.linspace(corner[-1], after[0], 4)
+    return points
+
+
 def _word(s, size, font, weight=NORMAL, right=False):
     """The letters of `s` behind an invisible point: the point is where the text starts (or
     ends, when `right`) and half-way up its line, so putting the point somewhere puts every
@@ -78,6 +95,9 @@ class _Change(Animation):
         if self.start:
             self.start()
         super().begin()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole table here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.step(alpha * self.seconds)
@@ -348,8 +368,7 @@ class DataTable(VGroup):
             # a hairline over every row but the first
             row.rule.set_points_as_corners([[left, y, 0], [right, y, 0]]).set_stroke(LINE, 1.2 * s, 0 if first else 0.7 * here)
             tall = max((PITCH - 0.14) * s * row.open, 0.01 * s)
-            bar = RoundedRectangle(corner_radius=min(0.05 * s, 0.49 * tall), width=0.1 * s, height=tall)
-            row.bar.set_points(bar.move_to([left - 0.18 * s, middle, 0]).points)
+            row.bar.set_points(_rounded(0.1 * s, tall, min(0.05 * s, 0.49 * tall)) + [left - 0.18 * s, middle, 0])
             row.bar.set_fill(row.color, row.lit * row.shown * float(np.clip(row.open * 4, 0, 1)))
             for cell in row.text:
                 cell.shift(np.array([left + cell.col.x * s, middle + cell.rise * PITCH * s, 0]) - cell.anchor.points[0])

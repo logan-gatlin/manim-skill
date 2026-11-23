@@ -34,7 +34,7 @@ A log made with the tracker already past some steps shows those as settled, with
 | `unit` | Written after each time. |
 | `panel` | `False` leaves out the box behind the lines. |
 
-The text is set in the skill's code font. Place the log with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that.
+The text is set in the skill's code font. Place the log with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that. `FadeIn` and `FadeOut` work: the log holds still while it fades.
 
 ## Regenerating the image
 

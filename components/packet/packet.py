@@ -114,6 +114,9 @@ class _Send(Animation):
         active[id(self)] = {}
         super().begin()
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole line here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         u = self.rate_func(alpha) * self.seconds
         landing = {}

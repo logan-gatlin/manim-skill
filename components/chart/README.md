@@ -19,7 +19,7 @@ self.wait(2)
 
 The chart keeps its own clock and reads its source every frame, so it runs during `wait` as well as `play`. Change the metric by animating the tracker; the line follows.
 
-- **Bringing it in.** Add it with `self.add(c)`: it fades itself in over `fade_in` seconds. Don't use `FadeIn` on it, which fails because the chart redraws itself every frame. To take it away, `self.remove(c)` or cover it.
+- **Bringing it in.** Add it with `self.add(c)`: it fades itself in over `fade_in` seconds. To use `FadeIn(c)` instead, make the chart with `fade_in=0`, or it would fade in twice. The chart holds still while it fades and starts to scroll once it is in. Take it away with `FadeOut(c)`.
 - **History from the start.** The chart is made with a full window of history at the starting value, so it never begins empty.
 - **A live look.** A tracker held steady would draw a flat line, so the chart adds a small waver of its own. `jitter=0` turns that off and draws the source exactly.
 - **Over the limit.** The line is cut exactly where it crosses the limit, so each stretch is one color: the chart's color under it and red over it.

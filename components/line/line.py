@@ -121,6 +121,9 @@ class _Grow(Animation):
     def __init__(self, connector, **kwargs):
         super().__init__(connector, introducer=True, **kwargs)
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole line here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         self.mobject.lay(self.rate_func(alpha))
 

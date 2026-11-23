@@ -52,6 +52,23 @@ def _ease(x):
     return x * x * (3 - 2 * x)
 
 
+KAPPA = 4 / 3 * np.tan(np.pi / 8)      # how far a quarter circle's handles are from its ends, in radii
+
+
+def _rounded(w, h, r):
+    """The points Manim's RoundedRectangle has, worked out directly: four quarter circles
+    of radius `r` joined by straight lines, anticlockwise from the right-hand side. Building
+    the mobject takes 4 ms, which is too slow to do on every frame."""
+    x, y, k = w / 2, h / 2, r * KAPPA
+    a = np.array([[x, y - r], [x, y - r + k], [x - r + k, y], [x - r, y]])      # the top right corner
+    corners = [a, a[::-1] * [-1, 1], a * [-1, -1], a[::-1] * [1, -1]]
+    points = np.zeros((32, 3))
+    for i, (corner, after) in enumerate(zip(corners, corners[1:] + corners[:1])):
+        points[8 * i:8 * i + 4, :2] = corner
+        points[8 * i + 4:8 * i + 8, :2] = np.linspace(corner[-1], after[0], 4)
+    return points
+
+
 def _word(s, size, font):
     """The letters of `s` behind an invisible point at their middle, half-way up the line:
     putting the point somewhere puts every word on the same baseline."""
@@ -132,6 +149,9 @@ class _Change(Animation):
         if self.start:
             self.start()
         super().begin()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole tree here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.step(alpha * self.seconds)
@@ -492,8 +512,8 @@ class Tree(VGroup):
         for n in self._drawn:
             middle = origin + np.array([n.pos[0] * s, n.pos[1] * s, 0])
             wide, tall = n.wide * s * n.size, TALL * s * n.size
-            box = RoundedRectangle(corner_radius=min(0.13 * s * n.size, 0.49 * tall), width=wide, height=tall).move_to(middle)
-            n.chip.set_points(box.points).set_fill(_mix(TRACK, n.tint, n.lit), n.shown)
+            n.chip.set_points(_rounded(wide, tall, min(0.13 * s * n.size, 0.49 * tall)) + middle)
+            n.chip.set_fill(_mix(TRACK, n.tint, n.lit), n.shown)
             n.label.shift(middle - n.label.anchor.points[0])
             ink = _mix(INK, BG, n.lit)
             for letter in n.label[1:]:

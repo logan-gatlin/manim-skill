@@ -43,12 +43,17 @@ class _Shuffle(Animation):
     def __init__(self, queue, plan, room, run_time):
         self.plan, self.room = plan, room                 # plan: [(item, place, shown, delay)]
         self.seconds = max([delay for *_, delay in plan], default=0) + MOVE
+        for item, *_ in plan:
+            item.busy += 1                                # it has a move still to make
         super().__init__(queue, run_time=run_time or self.seconds, rate_func=linear)
 
     def begin(self):
         self.start = [(item.place, item.shown) for item, *_ in self.plan]
         self.room_start = self.mobject._room
         super().begin()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole queue here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         queue, u = self.mobject, alpha * self.seconds
@@ -57,6 +62,12 @@ class _Shuffle(Animation):
             item.place, item.shown = place0 + (place - place0) * k, shown0 + (shown - shown0) * k
         queue._room = self.room_start + (self.room - self.room_start) * _ease(u / MOVE)
         queue._lay()
+
+    def finish(self):
+        super().finish()
+        for item, *_ in self.plan:
+            item.busy -= 1
+        self.plan = []
 
 
 class Queue(VGroup):
@@ -95,7 +106,7 @@ class Queue(VGroup):
         for j in range(n):
             place = len(self._items)
             item = Dot(radius=DOT * self._size(), color=GREY, fill_opacity=0)
-            item.place, item.shown = place + 3.0, 0.0
+            item.place, item.shown, item.busy, item.gone = place + 3.0, 0.0, 0, False
             self._items.append(item)
             self.dots.add(item)
             plan.append((item, float(place), 1.0, j * STAGGER))
@@ -112,17 +123,18 @@ class Queue(VGroup):
         plan = [(item, -1.6 - j, 0.0, j * STAGGER) for j, item in enumerate(leaving)]
         # everything behind moves up, setting off part-way through the departures
         plan += [(item, float(i), 1.0, 0.5 * max(n - 1, 0) * STAGGER) for i, item in enumerate(staying)]
-        self._gone = leaving
+        for item in leaving:
+            item.gone = True
         return _Shuffle(self, plan, self._want(), run_time)
 
     # ---- drawing it
 
     def _tidy(self):
-        """Forget items that have left."""
-        for item in getattr(self, "_gone", []):
-            if item in self.dots.submobjects:
+        """Forget items that have left. One whose leaving has been made but not yet played
+        stays, so that moves can be made ahead: Succession(q.pop(), q.pop())."""
+        for item in list(self.dots):
+            if item.gone and not item.busy:
                 self.dots.remove(item)
-        self._gone = []
 
     def _want(self):
         return float(self.capacity or max(len(self._items), 1))

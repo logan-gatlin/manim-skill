@@ -70,6 +70,9 @@ class _Draw(Animation):
         self.back = back
         super().__init__(callout, run_time=run_time, rate_func=linear, remover=back)
 
+    def create_starting_mobject(self):
+        return VMobject()       # Manim would copy the whole callout here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         p = 1 - alpha if self.back else alpha
         self.mobject._drawn, self.mobject._said = _ease(p / 0.6), _ease((p - 0.45) / 0.55)
@@ -104,7 +107,9 @@ class Callout(VGroup):
         side = np.array(side, dtype=float)
         if turn is None:
             turn = RIGHT if abs(side[1]) > 0.5 else False
-        self.target, self.side, self.rise, self.run, self.at = target, side, rise, run, at
+        # (Not `self.target`: Manim keeps the copy a mobject is being moved to under that
+        # name, so `callout.animate` would replace what the callout points at.)
+        self._subject, self.side, self.rise, self.run, self.at = target, side, rise, run, at
         self.turn = None if turn is False else np.array(turn, dtype=float)
         if self.turn is not None and abs(float(np.dot(self.turn, side))) > 1e-6:
             raise ValueError("turn must be at right angles to side: RIGHT or LEFT for a line that leaves UP or DOWN")
@@ -137,6 +142,16 @@ class Callout(VGroup):
         if follow:
             self.add_updater(Callout._follow)
 
+    def __deepcopy__(self, memo):
+        # A copy is a still picture of the callout, which points at the same thing and does
+        # not follow it: FadeIn, FadeOut and the like work on copies, and a copy that laid
+        # itself out again on every frame would undo the fade.
+        if isinstance(self._subject, Mobject):
+            memo.setdefault(id(self._subject), self._subject)
+        twin = super().__deepcopy__(memo)
+        twin.updaters = []
+        return twin
+
     # ---- using it
 
     def draw(self, run_time=0.8):
@@ -156,11 +171,11 @@ class Callout(VGroup):
 
     def _start(self):
         """Where the line leaves the target."""
-        if not isinstance(self.target, Mobject):
-            return np.array(self.target, dtype=float) + self.side * self.buff
+        if not isinstance(self._subject, Mobject):
+            return np.array(self._subject, dtype=float) + self.side * self.buff
         along = np.array([abs(self.side[1]), abs(self.side[0]), 0.0])      # the direction the side runs in
-        span = self.target.width if along[0] else self.target.height
-        return self.target.get_edge_center(self.side) + along * (self.at - 0.5) * span + self.side * self.buff
+        span = self._subject.width if along[0] else self._subject.height
+        return self._subject.get_edge_center(self.side) + along * (self.at - 0.5) * span + self.side * self.buff
 
     def _lay(self):
         """Put the line and the words where the target is now."""

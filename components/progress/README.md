@@ -15,7 +15,7 @@ self.play(done.animate.set_value(0.8), run_time=3)
 
 **Finishing is an event.** When the tracker reaches 1, the indicator celebrates for about a second. It springs (a quick swell that settles with a wobble), flashes white, and sends out a shockwave and a burst of sparks. Each one does this its own way, as described below. Give the scene that second (`self.wait(1)`) before moving on or fading it out. An indicator created already full shows as settled and doesn't celebrate. One that drops below 1 and returns celebrates again.
 
-Set the size with the function's arguments, then place the result with `move_to`, `next_to`, `to_edge` or `shift`. Don't `scale` or `Transform` it, because the next redraw undoes that. To show different progress, animate the tracker. Several indicators can share one tracker.
+Set the size with the function's arguments, then place the result with `move_to`, `next_to`, `to_edge` or `shift`. Don't `scale` or `Transform` it, because the next redraw undoes that. `FadeIn` and `FadeOut` work: the indicator holds still while it fades. To show different progress, animate the tracker. Several indicators can share one tracker.
 
 Each image below shows 30%, 62% and 100%.
 

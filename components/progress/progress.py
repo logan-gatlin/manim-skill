@@ -21,8 +21,8 @@ or Transform it: the next redraw would undo that. Example images are in images/.
 
 import numpy as np
 from manim import (
-    BOLD, DOWN, LEFT, ORIGIN, PI, RIGHT, TAU, UP, WHITE,
-    Arc, CapStyleType, Circle, Dot, Intersection, Line, ManimColor, Polygon, Rectangle,
+    BOLD, DOWN, LEFT, ORIGIN, PI, RED, RIGHT, TAU, UP, WHITE,
+    Arc, CapStyleType, Circle, Intersection, ManimColor, Polygon, Rectangle,
     RoundedRectangle, Text, VGroup, VMobject, interpolate_color, smooth,
 )
 
@@ -41,6 +41,21 @@ DONE = 0.999       # progress that counts as complete
 CELEBRATION = 1.0  # seconds the completion effect lasts
 
 
+class _Holder(VMobject):
+    """What a live drawing hangs from: see `live`. A copy of it is a still picture, which
+    does not redraw itself: FadeIn, FadeOut and the like work on copies, and fail if a copy
+    changes under them."""
+
+    def __init__(self):
+        super().__init__(stroke_width=0, fill_opacity=0)
+        self.set_points_as_corners([ORIGIN, ORIGIN])
+
+    def __deepcopy__(self, memo):
+        twin = super().__deepcopy__(memo)
+        twin.updaters = []
+        return twin
+
+
 def live(draw, tracker):
     """A mobject redrawn every frame as draw(p, t, since), from `tracker` (p, 0..1), a clock
     (t, seconds) and `since`, the seconds since p reached 1 (None while it hasn't).
@@ -52,8 +67,7 @@ def live(draw, tracker):
     that list and the camera re-reads its current children each frame; discarded drawings are
     hidden. Moving the holder moves the anchor, so the next drawing lands in the same place.
     """
-    holder = VMobject(stroke_width=0, fill_opacity=0)
-    holder.set_points_as_corners([ORIGIN, ORIGIN])
+    holder = _Holder()
     # Created already full: count it as finished long ago, so it shows settled, not celebrating.
     state = {"t": 0.0, "done_at": -1e9 if tracker.get_value() >= DONE else None}
 
@@ -134,8 +148,8 @@ def _sparks(center, since, color, angles, r0, reach=0.5, length=0.2, dur=0.6):
     center = np.array(center, dtype=float)
     for th in angles:
         u = np.array([np.cos(th), np.sin(th), 0])
-        line = Line(center + a * u, center + b * u, stroke_color=color,
-                    stroke_width=3.5 * (1 - k) + 0.5, stroke_opacity=1 - k ** 2)
+        line = _line(center + a * u, center + b * u, stroke_color=color,
+                     stroke_width=3.5 * (1 - k) + 0.5, stroke_opacity=1 - k ** 2)
         g.add(line.set_cap_style(CapStyleType.ROUND))
     return g
 
@@ -149,8 +163,63 @@ def _around(n, offset=0.0):
     return offset + np.arange(n) * TAU / n
 
 
+# Everything is drawn afresh for every frame, so what it is drawn from has to be quick to
+# make. Building a rounded rectangle takes some 4 ms and a Text 10 ms; these keep the points
+# of each one made and hand out bare shapes with those points, in a tenth of a millisecond.
+_outlines, _texts = {}, {}
+
+
+def _shape(points, **style):
+    """A bare shape with these points (an array of its own) and this style."""
+    m = VMobject(**style)
+    m.points = points
+    return m
+
+
+def _plain(mob):
+    """The parts of `mob` as bare shapes that look the same. A Text or an icon carries the
+    SVG it was read from, which makes each copy of it slow; copies of these are quick."""
+    parts = VGroup()
+    for part in mob.family_members_with_points():
+        bare = _shape(part.points.copy()).match_style(part)
+        bare.cap_style, bare.joint_type = part.cap_style, part.joint_type
+        parts.add(bare)
+    return parts
+
+
+def _outline(key, make):
+    """The points of the shape `make()` builds, worked out once for each `key`."""
+    if key not in _outlines:
+        _outlines[key] = make().points.copy()
+    return _outlines[key]
+
+
+def _rrect(corner, w, h, at=ORIGIN, scale=1.0, **style):
+    """A RoundedRectangle `scale` times this size, with its middle at `at`."""
+    points = _outline(("rrect", corner, w, h), lambda: RoundedRectangle(corner_radius=corner, width=w, height=h))
+    return _shape(points * scale + at, **style)
+
+
+def _circle(radius, at=ORIGIN, color=RED, **style):
+    """A Circle, which is red unless told otherwise, as Manim's is."""
+    return _shape(_outline("circle", lambda: Circle(radius=1)) * radius + at, color=color, **style)
+
+
+def _dot(radius, color, at=ORIGIN, fill_opacity=1.0):
+    return _circle(radius, at, color, stroke_width=0, fill_opacity=fill_opacity)
+
+
+def _line(a, b, **style):
+    return VMobject(**style).set_points_as_corners([a, b])
+
+
 def _text(s, size, color=MUTED, font=SANS, weight="NORMAL"):
-    return Text(s, font=font, font_size=size, color=color, weight=weight)
+    key = (s, size, str(color), font, weight)
+    if key not in _texts:
+        if len(_texts) > 2000:
+            _texts.clear()
+        _texts[key] = _plain(Text(s, font=font, font_size=size, color=color, weight=weight))
+    return _texts[key].copy()
 
 
 def _pct(p):
@@ -158,7 +227,7 @@ def _pct(p):
 
 
 def _capsule(w, h, **kw):
-    return RoundedRectangle(corner_radius=h / 2, width=w, height=h, **kw)
+    return _rrect(h / 2, w, h, **kw)
 
 
 def _left_of(shape, x0, x1, h):
@@ -184,7 +253,7 @@ def ring(tracker, radius=0.72, thickness=12, colors=(TEAL, BLUE), caption="synce
     """A circle that fills clockwise from the top, with the percentage in the middle."""
 
     def draw(p, t, since):
-        g = VGroup(Circle(radius=radius, stroke_color=TRACK, stroke_width=thickness))
+        g = VGroup(_circle(radius, stroke_color=TRACK, stroke_width=thickness))
         if p > 0.003:
             arc = Arc(radius=radius, start_angle=PI / 2, angle=-p * TAU, stroke_width=thickness)
             arc.set_stroke(list(colors)).set_cap_style(CapStyleType.ROUND)
@@ -198,7 +267,7 @@ def ring(tracker, radius=0.72, thickness=12, colors=(TEAL, BLUE), caption="synce
         # Done: the ring pops, a shockwave rings out, and sparks fly all around.
         g.scale(_spring(since, 0.1), about_point=ORIGIN)
         edge = radius + thickness / 200
-        g.add(_shockwave(Circle(radius=edge), since, colors[-1], reach=0.45 * k),
+        g.add(_shockwave(_circle(edge), since, colors[-1], reach=0.45 * k),
               _sparks(ORIGIN, since, colors[0], _around(12, PI / 12), edge + 0.12, 0.45 * k))
         return g
 
@@ -232,8 +301,8 @@ def liquid(tracker, width=4.8, height=0.56, colors=(BLUE, CYAN), show_percent=Tr
             main = Intersection(inner, wave(front, 0.05 * calm, 9, -5, 0, t))
             main.set_fill(list(colors), 1).set_sheen_direction(RIGHT).set_stroke(width=0)
             g.add(main, _flash(main, since))
-        shine = Line([x0 + 0.3, height / 2 - 0.1, 0], [-x0 - 0.3, height / 2 - 0.1, 0],
-                     stroke_color=WHITE, stroke_width=3, stroke_opacity=0.12)
+        shine = _line([x0 + 0.3, height / 2 - 0.1, 0], [-x0 - 0.3, height / 2 - 0.1, 0],
+                      stroke_color=WHITE, stroke_width=3, stroke_opacity=0.12)
         g.add(shine.set_cap_style(CapStyleType.ROUND))
         # Done: the tube pops, a shockwave rings out, and a splash bursts off the far wall.
         g.scale(_spring(since), about_point=ORIGIN)
@@ -259,22 +328,20 @@ def stepper(tracker, steps=("Plan", "Draft", "Review", "Ship"), width=4.8, color
     n = len(steps)
     xs = np.linspace(-width / 2 + 0.3, width / 2 - 0.3, n)
     r = 0.19
+    check = _plain(icon("tabler/outline/check", color=DARK, height=0.15, stroke_width=3.2))
 
     def draw(p, t, since):
-        g = VGroup(Line([xs[0], 0, 0], [xs[-1], 0, 0], stroke_color=TRACK_LINE, stroke_width=4))
+        g = VGroup(_line([xs[0], 0, 0], [xs[-1], 0, 0], stroke_color=TRACK_LINE, stroke_width=4))
         if p > 0.002:
             xp = xs[0] + min(p, 1) * (xs[-1] - xs[0])
-            line = Line([xs[0], 0, 0], [xp, 0, 0], stroke_color=color, stroke_width=4)
+            line = _line([xs[0], 0, 0], [xp, 0, 0], stroke_color=color, stroke_width=4)
             g.add(line, _flash(line, since))
         current_found = False
         for i, (x, name) in enumerate(zip(xs, steps)):
             done = p >= i / (n - 1) + 1e-4 if i < n - 1 else p >= 0.999
             if done:
-                disc = Circle(radius=r, fill_color=color, fill_opacity=1, stroke_width=0)
-                node = VGroup(
-                    disc, icon("tabler/outline/check", color=DARK, height=0.15, stroke_width=3.2),
-                    _flash(disc, since, dur=0.35 + 0.08 * i),
-                )
+                disc = _circle(r, fill_color=color, fill_opacity=1, stroke_width=0)
+                node = VGroup(disc, check.copy(), _flash(disc, since, dur=0.35 + 0.08 * i))
                 # Done: the checks hop one after another, first to last.
                 node.scale(_spring(since, 0.3, delay=0.07 * i))
                 tone = INK
@@ -282,23 +349,20 @@ def stepper(tracker, steps=("Plan", "Draft", "Review", "Ship"), width=4.8, color
                 current_found = True
                 ph = (t * 1.1) % 1
                 node = VGroup(
-                    Circle(radius=r + 0.2 * ph, stroke_color=color, stroke_width=3,
-                           stroke_opacity=1 - ph),
-                    Circle(radius=r, fill_color=DARK, fill_opacity=1, stroke_color=color,
-                           stroke_width=3),
-                    Dot(radius=0.06, color=color),
+                    _circle(r + 0.2 * ph, stroke_color=color, stroke_width=3, stroke_opacity=1 - ph),
+                    _circle(r, fill_color=DARK, fill_opacity=1, stroke_color=color, stroke_width=3),
+                    _dot(0.06, color),
                 )
                 tone = INK
             else:
-                node = Circle(radius=r, fill_color=DARK, fill_opacity=1, stroke_color=TRACK_LINE,
-                              stroke_width=3)
+                node = _circle(r, fill_color=DARK, fill_opacity=1, stroke_color=TRACK_LINE, stroke_width=3)
                 tone = MUTED
             g.add(node.move_to([x, 0, 0]), _text(name, 17, tone).next_to([x, 0, 0], DOWN, buff=0.38))
         # ...and the last one lands with a shockwave and sparks.
         last = [xs[-1], 0, 0]
         hit = 0.07 * (n - 1)
         later = None if since is None else since - hit
-        g.add(_shockwave(Circle(radius=r).move_to(last), later, color, reach=0.3),
+        g.add(_shockwave(_circle(r, last), later, color, reach=0.3),
               _sparks(last, later, color, _around(10, PI / 10), r + 0.1, 0.35, 0.15))
         return g
 
@@ -340,7 +404,7 @@ def phases(tracker, parts=(("Download", BLUE, 0.5), ("Verify", VIOLET, 0.2), ("I
             word = words[i:i + n].set_color(tone)
             i += n
             first = word[0]
-            dot = Dot(radius=0.06, color=col, fill_opacity=1 if begun else 0.35)
+            dot = _dot(0.06, col, fill_opacity=1 if begun else 0.35)
             legend.add(dot.move_to([word.get_left()[0] - 0.17, first.get_bottom()[1] + 0.07, 0]))
         legend.next_to(bar, DOWN, buff=0.28).align_to(bar, LEFT).shift(0.17 * RIGHT)
         # Done: the bar flashes and pops, a shockwave rings out, sparks fly off the end.
@@ -380,18 +444,17 @@ def grid_fill(tracker, rows=8, cols=8, cell=0.22, gap=0.05, colors=(TEAL, BLUE, 
     last = np.array(centers[-1])
     dists = [float(np.linalg.norm(np.array(c) - last)) for c in centers]
     speed, band = 6.0, 0.7  # the completion ripple: units per second, and its width
+    square = _outline(("rrect", corner, cell, cell), lambda: RoundedRectangle(corner_radius=corner, width=cell, height=cell))
+    empty = np.vstack([square + c for c in centers])         # every empty square, as one shape
 
     def draw(p, t, since):
         lit = _phase(since, 0.6)
         edge = TRACK_LINE if lit is None else interpolate_color(
             ManimColor(colors[-1]), ManimColor(TRACK_LINE), lit)
-        frame = RoundedRectangle(corner_radius=corner + pad, width=w + 2 * pad, height=h + 2 * pad,
-                                 stroke_color=edge, stroke_width=2.5)
-        g = VGroup(frame)
+        frame = _rrect(corner + pad, w + 2 * pad, h + 2 * pad, stroke_color=edge, stroke_width=2.5)
+        g = VGroup(frame, _shape(empty.copy(), fill_color=TRACK, fill_opacity=1, stroke_width=0))
         front = p * (n + trail)
         for k, pos in enumerate(centers):
-            g.add(RoundedRectangle(corner_radius=corner, width=cell, height=cell, fill_color=TRACK,
-                                   fill_opacity=1, stroke_width=0).move_to(pos))
             f = float(np.clip((front - k) / trail, 0, 1))
             if f > 0.08:
                 s = smooth(f)
@@ -404,8 +467,7 @@ def grid_fill(tracker, rows=8, cols=8, cell=0.22, gap=0.05, colors=(TEAL, BLUE, 
                     bump = float(np.sin(PI * v / band))
                     s *= 1 + 0.3 * bump
                     col = interpolate_color(ManimColor(col), ManimColor(WHITE), 0.75 * bump)
-                g.add(RoundedRectangle(corner_radius=corner * s, width=cell * s, height=cell * s,
-                                       fill_color=col, fill_opacity=1, stroke_width=0).move_to(pos))
+                g.add(_rrect(corner, cell, cell, pos, s, fill_color=col, fill_opacity=1, stroke_width=0))
         g.scale(_spring(since, 0.04), about_point=ORIGIN)
         g.add(_shockwave(frame.copy(), since, colors[-1], reach=0.35))
         if show_percent:

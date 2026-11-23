@@ -32,6 +32,9 @@ class _Draw(Animation):
     def __init__(self, boundary, **kwargs):
         super().__init__(boundary, introducer=True, **kwargs)
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole boundary here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         self.mobject._lay(self.mobject.box, self.rate_func(alpha))
 
@@ -46,6 +49,9 @@ class _Resize(Animation):
     def begin(self):
         self.start = np.array(self.mobject.box, dtype=float)
         super().begin()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole boundary here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.mobject._lay(self.start + (self.box - self.start) * self.rate_func(alpha), 1.0)
@@ -66,6 +72,8 @@ class Boundary(VGroup):
 
     def __init__(self, *members, label=None, color=LINE, pad=0.28, radius=0.16, label_size=13, **kwargs):
         super().__init__(**kwargs)
+        if not members:
+            raise ValueError("a boundary needs something to go around: give it at least one mobject")
         self.members, self.pad, self.radius = list(members), pad, radius
         self.sides = [VMobject(joint_type=LineJointType.ROUND).set_stroke(color, 2).set_fill(opacity=0)
                       .set_cap_style(CapStyleType.ROUND) for _ in range(2)]

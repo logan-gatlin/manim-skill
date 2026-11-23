@@ -23,7 +23,7 @@ self.play(q.pop(2))         # as two leave, two of those waiting move in
 - **A full queue** has red brackets.
 - **Items with no room** wait outside the left bracket, in grey, and turn blue as they move in when room appears. This is back-pressure: the producer is held up, and nothing is thrown away.
 
-`q.push(n)` and `q.pop(n)` return the animation of `n` items joining or leaving, one after another; everything behind a leaving item moves up. Popping more than there are takes what is there. `q.count` is how many items are in the queue or waiting.
+`q.push(n)` and `q.pop(n)` return the animation of `n` items joining or leaving, one after another; everything behind a leaving item moves up. Popping more than there are takes what is there. Moves can be made ahead of being played, so `Succession(q.push(3), q.pop())` works. `q.count` is how many items are in the queue or waiting.
 
 ## Options
 

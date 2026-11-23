@@ -46,12 +46,23 @@ def _ease(x):
     return x * x * (3 - 2 * x)
 
 
+def _show(letter, opacity):
+    """Give a letter this opacity, unless it has it already. The terminal is laid out on
+    every frame, there may be hundreds of letters on it, and setting an opacity takes some
+    twenty times as long as checking one."""
+    if letter.get_fill_opacity() != opacity:
+        letter.set_opacity(opacity)
+
+
 class _Change(Animation):
     """Runs a terminal's state through a function of the seconds elapsed."""
 
     def __init__(self, terminal, seconds, step, run_time):
         self.seconds, self.step = seconds, step
         super().__init__(terminal, run_time=run_time or seconds, rate_func=linear)
+
+    def create_starting_mobject(self):
+        return VMobject()       # Manim would copy the whole terminal here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.step(alpha * self.seconds)
@@ -98,6 +109,14 @@ class Terminal(VGroup):
         self._lay()
         self.add_updater(Terminal._blink)
 
+    def __deepcopy__(self, memo):
+        # A copy is a still picture of the terminal, whose cursor does not blink: FadeIn,
+        # FadeOut and the like work on copies, and a copy that laid itself out again on
+        # every frame would undo the fade.
+        twin = super().__deepcopy__(memo)
+        twin.updaters = []
+        return twin
+
     # ---- using it
 
     def type(self, command, run_time=None):
@@ -105,7 +124,8 @@ class Terminal(VGroup):
         self._tidy()
         index = self._planned[1]
         line = self._lines[index]
-        glyphs = self._row([(" " * (len(self.prompt) + 1) + command, INK)])[0].shift(line.anchor.points[0])
+        row = self._row([(" " * (len(self.prompt) + 1) + command, INK)])
+        glyphs = (row[0] if len(row) else VGroup()).shift(line.anchor.points[0])      # (a command of spaces has no letters)
         line.add(glyphs)
         line.command, line.typed_glyphs = command, glyphs
         for g in glyphs:
@@ -194,14 +214,21 @@ class Terminal(VGroup):
             row = i - scrolled
             shown = float(np.clip(self._count - i, 0, 1)) * float(np.clip(row + 1, 0, 1))
             spot = np.array([left, top - row * self._pitch - 0.05 * (1 - float(np.clip(self._count - i, 0, 1))), 0])
-            line.shift(spot - line.anchor.points[0])
+            move = spot - line.anchor.points[0]
+            if np.abs(move).max() > 1e-9:
+                line.shift(move)
             for part in line[1:]:
-                part.set_opacity(shown)
+                if part is not line.typed_glyphs:
+                    for letter in part:
+                        _show(letter, shown)
             if line.is_prompt and len(line.typed_glyphs):
                 typed = self._typed if i == self._current else len(line.command)
                 visible = len(line.command[:typed].replace(" ", ""))
                 for k, glyph in enumerate(line.typed_glyphs):
-                    glyph.set_opacity(shown if k < visible else 0)
+                    _show(glyph, shown if k < visible else 0)
+            else:
+                for letter in line.typed_glyphs:
+                    _show(letter, shown)
         # the band and the cursor belong to the prompt, when no command is running
         row = self._current - scrolled
         here = float(np.clip(self._count - self._current, 0, 1)) * (1 - self._busy)

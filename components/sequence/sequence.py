@@ -148,6 +148,9 @@ class _Draw(Animation):
     def __init__(self, seq, **kwargs):
         super().__init__(seq, introducer=True, **kwargs)
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole diagram here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         a = self.rate_func(alpha)
         self.mobject._grow(self.mobject._first_reach() * _ease(a / 0.8), names=_ease(a / 0.5))
@@ -168,6 +171,9 @@ class _Play(Animation):
         self.start = seq._reach
         self.end = max(seq._reach, seq._below(self.row + (0.42 if self.message.a == self.message.b else 0)))
         super().begin()
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole diagram here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         self.mobject._grow(self.start + (self.end - self.start) * _ease(alpha / 0.6))

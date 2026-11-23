@@ -60,6 +60,9 @@ class _Change(Animation):
         self.before, self.shaken = self.mobject._color, 0.0
         super().begin()
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole node here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         node = self.mobject
         seconds = alpha * self.run_time

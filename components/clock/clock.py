@@ -35,6 +35,7 @@ ROLL = 0.3      # seconds a digit's wheel takes to turn to the next digit
 REEL = 0.3      # a digit changing about this often a frame is a blur: its wheel turns this far a frame
 WHEEL = 0.8     # the radius of a digit's wheel, in digit heights
 DEPTH = 3.2     # how far away the wheels are seen from, in wheel radii: nearer bends them more
+LEAP = 0.2      # seconds: a longer step than this is not a frame of video but skipped time
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -122,7 +123,11 @@ class _Type:
         if ch not in self._made:
             pair = Text("0" + ch, font=MONO, font_size=self.size)
             glyph = pair[1].shift(-pair[0].get_center() - np.array([self.advance, 0, 0]))
-            self._made[ch] = (glyph, _outline(glyph))
+            # A Text's letter carries the SVG it was read from, which makes it slow to copy,
+            # and the clock copies one for every character on every frame: keep a bare
+            # shape with the same points and style instead.
+            bare = VMobject().set_points(glyph.points).match_style(glyph)
+            self._made[ch] = (bare, _outline(glyph))
         return self._made[ch]
 
 
@@ -205,6 +210,13 @@ class Clock(VMobject):
         self._redraw(0)
         self.add_updater(lambda m, dt: m._redraw(dt))
 
+    def __deepcopy__(self, memo):
+        # A copy is a still picture of the clock, which does not redraw itself or keep time:
+        # FadeIn, FadeOut and the like work on copies, and fail if a copy changes under them.
+        twin = super().__deepcopy__(memo)
+        twin.updaters = []
+        return twin
+
     # ---- turning it
 
     def to(self, time, forward=True, days=0, run_time=None, rate_func=smooth):
@@ -257,6 +269,7 @@ class Clock(VMobject):
         self._line_y = self._digits_y - self._big.height / 2 - 0.24 * r - self._small.height / 2
 
         c = self._centre
+        self._box = Rectangle(width=2 * r, height=self._height, stroke_width=0, fill_opacity=0)
         self._face = VGroup(Circle(radius=r, stroke_color=LINE, stroke_width=3 * r, fill_color=PANEL, fill_opacity=1).move_to(c))
         for k in range(12):
             d = np.array([np.sin(k * TAU / 12), np.cos(k * TAU / 12), 0])
@@ -297,9 +310,16 @@ class Clock(VMobject):
         if dt > 0 and self.rate and not self._jumping:
             self.minutes.increment_value(self.rate * dt / 60)
         now = float(self.minutes.get_value())
-        if dt > 0:
+        if dt > LEAP:
+            # Far more time than a frame's has gone by at once: a draft that skips its
+            # animations takes each in a single step. Draw the clock as it is once that is
+            # over, at rest or ticking at its own rate, not blurred by the whole journey.
+            self._moved = self.rate * self._dt / 60
+            self._speed = self._moved / self._dt
+        elif dt > 0:
             self._moved, self._dt = now - self._seen, dt
             self._speed += (self._moved / dt - self._speed) * min(1.0, dt / 0.05)
+        if dt > 0:
             if self._moved:
                 self._phase = (self._phase + np.sign(self._moved) * REEL) % 1
         self._seen = now
@@ -311,7 +331,7 @@ class Clock(VMobject):
         r, c = self._r, self._centre
         # An invisible box over the whole clock keeps its size the same from frame to frame,
         # so it sits where it is put whatever the hands and digits are doing.
-        g = VGroup(Rectangle(width=2 * r, height=self._height, stroke_width=0, fill_opacity=0), self._face.copy())
+        g = VGroup(self._box.copy(), self._face.copy())
         hands = [(720, 0.5, 7, INK), (60, 0.74, 4.5, INK)]               # minutes a turn, length, width, color
         if self._seconds:
             hands.append((1, 0.8, 2, self._accent))
@@ -328,12 +348,16 @@ class Clock(VMobject):
                 # side by side, each fainter than the last. (Stacking see-through wedges
                 # instead would drift in hue as their rounding errors added up.)
                 side, span, n = (1 if self._speed > 0 else -1), trail + (TAU - trail) * blur, 40
+                # one wedge is built, and the rest are that one turned
+                wedge = AnnularSector(inner_radius=0, outer_radius=length * r, angle=side * span / n, start_angle=0).points
                 for k in range(n):
                     faint = 0.2 * (1 - (k + 0.5) / n) ** 1.5
                     faint += (0.09 - faint) * blur
-                    g.add(AnnularSector(inner_radius=0, outer_radius=length * r, angle=side * span / n,
-                                        start_angle=PI / 2 - angle + side * span * k / n, fill_color=color,
-                                        fill_opacity=faint, stroke_width=0).shift(c))
+                    turn = PI / 2 - angle + side * span * k / n
+                    cos, sin = np.cos(turn), np.sin(turn)
+                    part = VMobject(fill_color=color, fill_opacity=faint, stroke_width=0)
+                    part.points = wedge @ np.array([[cos, sin, 0], [-sin, cos, 0], [0, 0, 1]]) + c
+                    g.add(part)
             d = np.array([np.sin(angle), np.cos(angle), 0])
             tail = 0.14 if period == 1 else 0.0
             lines.add(_line(c - tail * r * d, c + length * r * d, color, width * r, 1 - 0.85 * blur))

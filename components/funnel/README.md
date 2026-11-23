@@ -35,7 +35,7 @@ Which dots are lost, and where, is fixed, so the funnel looks the same on every 
 | `dot` | A dot's radius. The narrow end is never tighter than a dot can pass. |
 | `filled` | The funnel starts with dots already all along it, so it is in full flow from the first frame. `False` starts it empty; it then takes `width / speed` seconds to fill. |
 
-Place it with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that. Set its size with `width`, `height`, `dot` and `label_size`.
+Place it with `move_to`, `next_to` or `shift`. Don't `scale` it: the next redraw undoes that. `FadeIn` and `FadeOut` work: the funnel holds still while it fades. Set its size with `width`, `height`, `dot` and `label_size`.
 
 ## Regenerating the image
 

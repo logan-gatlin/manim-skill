@@ -59,6 +59,9 @@ class _Draw(Animation):
     def __init__(self, machine, **kwargs):
         super().__init__(machine, introducer=True, **kwargs)
 
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole machine here, and never use the copy
+
     def interpolate_mobject(self, alpha):
         m, a = self.mobject, self.rate_func(alpha)
         for i, chip in enumerate(m.chips.values()):
@@ -79,6 +82,9 @@ class _Fire(Animation):
     def __init__(self, machine, key, run_time):
         self.key = key
         super().__init__(machine, run_time=run_time, rate_func=lambda t: t)
+
+    def create_starting_mobject(self):
+        return VGroup()         # Manim would copy the whole machine here, and never use the copy
 
     def interpolate_mobject(self, alpha):
         m = self.mobject
